@@ -1,0 +1,18 @@
+[package]
+name = "descent-relayer-client"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# ethers with http(s) as transport type
+ethers = { version = "2.0", features = ["rustls"] }
+# Ethers' async features rely upon the Tokio async runtime.
+tokio = { version = "1", features = ["full"] }
+# Flexible concrete Error Reporting type built on std::error::Error with customizable Reports
+eyre = "0.6"
+dotenv = "0.15.0"
+reqwest = { version = "0.11", features = ["json"] }
+serde = { version = "1.0", features = ["derive"] }
+rand = "0.8.5"
