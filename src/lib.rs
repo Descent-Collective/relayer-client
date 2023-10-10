@@ -4,7 +4,7 @@ use ethers::{
     prelude::abigen,
     providers::{Http, Provider},
     signers::{LocalWallet, Signer},
-    types::{Address, Bytes, H256, U256},
+    types::{Address, H256, U256},
     utils::{parse_units, ParseUnits},
 };
 use std::{str::FromStr, sync::Arc};
@@ -25,7 +25,9 @@ pub async fn run() -> eyre::Result<()> {
     // define vectors to be used to store variables to parse to the function onchain
     let mut prices: Vec<U256> = Vec::new();
     let mut timestamps: Vec<U256> = Vec::new();
-    let mut signatures: Vec<Bytes> = Vec::new();
+    let mut r: Vec<[u8; 32]> = Vec::new();
+    let mut s: Vec<[u8; 32]> = Vec::new();
+    let mut v: Vec<u8> = Vec::new();
 
     // filter the price and timestamp info and push to their respective vectors
     for (p, t) in prices_and_timestamps.iter() {
@@ -35,7 +37,7 @@ pub async fn run() -> eyre::Result<()> {
         // match to only take U256 types
         let second = match first {
             ParseUnits::U256(a) => a,
-            ParseUnits::I256(_) => panic!("Negative values not allowed"),
+            ParseUnits::I256(_) => panic!("Negative values not allowed"), // sanity check
         };
 
         // push to respective arrays
@@ -47,13 +49,13 @@ pub async fn run() -> eyre::Result<()> {
     abigen!(
         IOracleModule,
         r#"[
-            function update(uint256[] calldata prices, uint256[] calldata timestamps, bytes[] calldata signatures) external
+            function update(uint256[] calldata prices, uint256[] calldata timestamps, bytes32[] calldata r, bytes32[] calldata s, uint8[] calldata v) external
         ]"#
     );
 
     // define rpc url and oracle module address
     let rpc_url: String = std::env::var("RPC_URL").expect("RPC_URL must be set in your .env file");
-    let oracle_module_address: Address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".parse()?;
+    let oracle_module_address: Address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".parse()?; // shouldn't revert
 
     // define provider to use from rpc url
     let provider = Provider::<Http>::try_from(rpc_url)?;
@@ -66,7 +68,8 @@ pub async fn run() -> eyre::Result<()> {
     let wallet = LocalWallet::from_bytes(
         H256::from_str(
             &std::env::var("PRIVATE_KEY").expect("RPC_URL must be set in your .env file"),
-        ).expect("invalid hex private key")
+        )
+        .expect("invalid hex private key")
         .as_bytes(),
     )
     .unwrap();
@@ -79,16 +82,43 @@ pub async fn run() -> eyre::Result<()> {
         // sign message with wallet
         let signature = wallet.sign_message(&message).await?;
 
-        // convert to bytes and push to signatures vector
-        signatures
-            .push(Bytes::try_from(signature.to_vec()).expect("could not convert sig to bytes"));
+        // push to vector
+        r.push(u64_array_to_u8_array(signature.r.0));
+        s.push(u64_array_to_u8_array(signature.s.0));
+        v.push(signature.v as u8);
     }
 
     // print values
     println!("addr: {:?}", wallet.address());
     println!("prices: {:?}", prices);
     println!("time: {:?}", timestamps);
-    println!("sigs: {:?}", signatures);
+    println!("r: {:?}", r);
+    println!("s: {:?}", s);
+    println!("v: {:?}", v);
+
+    // Update onchain oracle
+    // Uncomment this, run `anvil` in your terminal, set env rpc url to 127.0.0.1:8545 and run `cargo run`
+    // let built_tx_object = _oracle_module
+    //     .update(prices, timestamps, r, s, v)
+    //     .from(wallet.address());
+    // let tx = built_tx_object.send().await?;
+    // println!("{:?}", built_tx_object);
+    // println!("{:?}", tx);
 
     Ok(())
+}
+
+// helper
+pub fn u64_array_to_u8_array(input: [u64; 4]) -> [u8; 32] {
+    let mut output = [0; 32];
+
+    for (i, &u64_value) in input.iter().enumerate() {
+        let bytes = u64_value.swap_bytes().to_le_bytes();
+
+        let u = 3 - i;
+
+        output[u * 8..(u + 1) * 8].copy_from_slice(&bytes);
+    }
+
+    output
 }

@@ -2,6 +2,7 @@ use crate::fetch_prices::utils;
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
+#[allow(non_snake_case)]
 struct Response {
     USD: f32,
 }
