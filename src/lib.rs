@@ -82,7 +82,7 @@ pub async fn run() -> eyre::Result<()> {
                 U256::try_from(timestamps[i]).expect("could not convert from u64 to timestamp"),
             ),
             Token::FixedBytes(FixedBytes::from(
-                Vec::from_hex("b88786d22267760ea20c3125a65bc9131cf489cc09299fa24bf2d92aa702484f")?, // keccak256(abi.encode(currencyAddress, collateralAddress))
+                Vec::from_hex("b88786d22267760ea20c3125a65bc9131cf489cc09299fa24bf2d92aa702484f")?, // keccak256(abi.encode(currencyAddress, collateralAddress)) the value here is a dummy value that uses currencyAddress as address(1234) and collateralAddress as address(5678)
             )),
         ]));
 
