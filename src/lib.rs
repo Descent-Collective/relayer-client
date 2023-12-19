@@ -6,7 +6,7 @@ use ethers::{
     providers::{Http, Provider},
     signers::{LocalWallet, Signer},
     types::{Address, Bytes, H256, U256},
-    utils::{hex::FromHex, parse_units, ParseUnits},
+    utils::{hex::FromHex, keccak256, parse_units, ParseUnits},
 };
 use std::{str::FromStr, sync::Arc};
 
@@ -25,7 +25,7 @@ pub async fn run() -> eyre::Result<()> {
 
     // define vectors to be used to store variables to parse to the function onchain
     let mut prices: Vec<U256> = Vec::new();
-    let mut timestamps: Vec<u64> = Vec::new();
+    let mut timestamps: Vec<U256> = Vec::new();
     let mut signatures: Vec<Bytes> = Vec::new();
 
     // filter the price and timestamp info and push to their respective vectors
@@ -41,20 +41,20 @@ pub async fn run() -> eyre::Result<()> {
 
         // push to respective arrays
         prices.push(second);
-        timestamps.push(t);
+        timestamps.push(t.into());
     }
 
     // define interface for update fn call
     abigen!(
         IOracleModule,
         r#"[
-            function update(uint256[] calldata _prices, uint64[] calldata _timestamps, bytes[] calldata _signatures) external
+            function update(uint256[] calldata _prices, uint256[] calldata _timestamps, bytes[] calldata _signatures) external
         ]"#
     );
 
     // define rpc url and oracle module address
     let rpc_url: String = std::env::var("RPC_URL").expect("RPC_URL must be set in your .env file");
-    let oracle_module_address: Address = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512".parse()?; // shouldn't revert
+    let oracle_module_address: Address = "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0".parse()?; // shouldn't revert
 
     // define provider to use from rpc url
     let provider = Provider::<Http>::try_from(rpc_url)?;
@@ -76,15 +76,15 @@ pub async fn run() -> eyre::Result<()> {
     // loop through price and timestamp array, abi encode them concatenated together, hash and sign it as "\x19Ethereum Signed Message:\n" + len + encoded message
     for i in 0..prices.len() {
         // encode price + timestamp. where + is concatenation
-        let message = encode(&[
+        let message = keccak256(encode(&[
             Token::Uint(prices[i]),
             Token::Uint(
                 U256::try_from(timestamps[i]).expect("could not convert from u64 to timestamp"),
             ),
             Token::FixedBytes(FixedBytes::from(
-                Vec::from_hex("555344432f784e474e0000000000000000000000000000000000000000000000")?, // hex of "USDC/xNGN"
+                Vec::from_hex("b88786d22267760ea20c3125a65bc9131cf489cc09299fa24bf2d92aa702484f")?, // keccak256(abi.encode(currencyAddress, collateralAddress))
             )),
-        ]);
+        ]));
 
         // sign message with wallet
         let signature = wallet.sign_message(&message).await?;
